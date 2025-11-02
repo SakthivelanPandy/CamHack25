@@ -4,131 +4,127 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 import os
+import json
+import pyautogui
 
 app = Flask(__name__)
+
+file_num = 0
 
 
 @app.route("/", methods=["GET"])
 def peer():
+    global file_num
     msg = request.args.get("msg", "Hello, Peer!")
     name = request.args.get("name", "Peer")
     group = request.args.get("group", "General")
+    local = request.args.get("local", "False")
     add_message_to_text_file(msg, name, group)
-    generate_pdf(group)
-    add_message_to_pdf(msg, name, group)
+    add_messages_to_pdf(msg,group)
 
-    # kill adobe acrobat process to force reload of updated.pdf
-    if os.name == "nt":
-        os.system("taskkill /f /im AcroRd32.exe")
-    else:
-        os.system("osascript -e 'tell application \"Adobe Acrobat\" to quit'")
-        os.system("osascript -e 'tell application \"Chrome\" to quit'")
+    # The following commands are for macOS to close and reopen Adobe Acrobat
+    #os.system("osascript -e 'tell application \"Adobe Acrobat\" to quit'")
 
-    os.system("sleep 10;open -a Adobe\ Acrobat new_message.pdf")
+    
+
+    if local == "True":
+        # Adobe acrobat will ask if you want to save changes, use pyautogui to click "Don't Save"
+        pyautogui.sleep(5)
+        pyautogui.click(x=960, y=540)  # Coordinates for "Don't Save" button
+
+    os.system("osascript -e 'tell application \"Chrome\" to quit'")
+    os.system(f"open -a Adobe\\ Acrobat new_message_{file_num}.pdf")
+
+    file_num += 1
+
     return "Message Received"
 
 
 def add_message_to_text_file(msg, name, group):
     with open(group + ".txt", "a") as f:
-        f.write(f"{name}:{msg}\n")
+        f.write(f"{name}:{msg}\\n")
 
 
-def add_message_to_pdf(msg, name, group):
-    # Create a PDF in memory
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+# def add_messages_to_pdf(group):
+#     # Create a PDF in memory
+#     packet = BytesIO()
+#     can = canvas.Canvas(packet, pagesize=letter)
 
-    # can.drawString(100, 750, f"Message: {msg}")
-    # can.drawString(100, 730, f"From: {name}")
-    # draw a String for each msg in {group}.txt
-    with open(group + ".txt", "r") as f:
-        lines = f.readlines()
-        y = 700
-        for line in lines:  # Show only the last 5 messages
-            can.drawString(100, y, line.strip())
-            y -= 20
+#     # can.drawString(100, 750, f"Message: {msg}")
+#     # can.drawString(100, 730, f"From: {name}")
+#     # draw a String for each msg in {group}.txt
+#     with open(group + ".txt", "r") as f:
+#         lines = f.readlines()
+#         y = 700
+#         for line in lines:  # Show only the last 5 messages
+#             can.drawString(100, y, line.strip())
+#             y -= 20
 
-    can.save()
+#     can.save()
 
-    # Move to the beginning of the StringIO buffer
-    packet.seek(0)
-    new_pdf = PdfReader(packet)
+#     # Move to the beginning of the StringIO buffer
+#     packet.seek(0)
+#     new_pdf = PdfReader(packet)
 
-    # Read the existing PDF
+#     # Read the existing PDF
+#     existing_pdf = PdfReader("message.pdf")
+#     output = PdfWriter()
+
+#     # Add the "watermark" (which is the new pdf) on the existing page
+#     page = existing_pdf.pages[0]
+#     page.merge_page(new_pdf.pages[0])
+#     output.add_page(page)
+
+#     # Write the result to a new PDF file
+#     with open("new_message.pdf", "wb") as outputStream:
+#         output.write(outputStream)
+
+
+def add_messages_to_pdf(msg,group):
+    # Read the existing PDF with form fields
     existing_pdf = PdfReader("message.pdf")
     output = PdfWriter()
+    global file_num
 
-    # Add the "watermark" (which is the new pdf) on the existing page
-    page = existing_pdf.pages[0]
-    page.merge_page(new_pdf.pages[0])
-    output.add_page(page)
+    reader = PdfReader("message.pdf")
+    writer = PdfWriter()
 
-    # Write the result to a new PDF file
-    with open("new_message.pdf", "wb") as outputStream:
-        output.write(outputStream)
+    writer.append_pages_from_reader(reader)
 
+    # Add all pages from the existing PDF
+    for page in existing_pdf.pages:
+        output.add_page(page)
 
-def generate_pdf(group):
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
-
+    # Read all messages from the text file
     with open(group + ".txt", "r") as f:
         lines = f.readlines()
-        for i, line in enumerate(lines):
-            can.drawString(100, 750 - (i * 15), line.strip())
 
-    # label for the editable field
-    can.drawString(100, 110, "New Message:")
+    
+    
+    # Combine all messages into a single string with newlines
+    messages_text = "".join(lines)
+    # messages_text = "Peer:hihi\\nPeer:hello"
 
-    # optional visual rectangle behind the field
-    can.rect(100, 80, 400, 20, stroke=1, fill=0)
+    # Update the ChatBox form field with the messages
+    # output.update_page_form_field_values(
+    #     output.pages[0], {"ChatBox": messages_text}
+    # )
 
-    # Add an AcroForm text field so users can type in a PDF editor
-    # ReportLab exposes the form API as can.acroForm (or can.acroform in some versions).
-    try:
-        can.acroForm.textfield(
-            name="new_message",
-            tooltip="Type your message here",
-            x=100,
-            y=80,
-            width=400,
-            height=20,
-            borderStyle="inset",
-            forceBorder=True,
-            value="",
-        )
-    except Exception:
-        try:
-            can.acroform.textfield(
-                name="new_message",
-                tooltip="Type your message here",
-                x=100,
-                y=80,
-                width=400,
-                height=20,
-                borderStyle="inset",
-                forceBorder=True,
-                value="",
-            )
-        except Exception:
-            # If the environment doesn't support AcroForm, continue without a form field.
-            pass
+    # js = "var f = this.getField('Text1'); f.value = 'hihi';"
 
-    # small submit label and link (optional)
-    can.drawString(100, 50, "Submit")
-    js = "msg = this.getField('new_message').value; " "alert('Submitting: ' + msg); "
+    # js = "function foo(){var f = this.getField('Text1');f.value = 'hihi';};;app.setTimeOut(foo, 500);"
 
-    can.linkURL("javascript:" + js, (100, 40, 150, 60), relative=1)
+    # Build safe JS (assign into the ChatBox field, after a small delay)
+    code_inner = f'var f = this.getField("Hidden"); f.value = {json.dumps(messages_text)};'
+    js = f"app.setTimeOut('{code_inner}', 500);"
 
-    can.save()
+    writer.add_js(js)
+    
 
-    packet.seek(0)
-    new_pdf = PdfReader(packet)
-    output = PdfWriter()
-    output.add_page(new_pdf.pages[0])
-
-    with open("updated.pdf", "wb") as outputStream:
-        output.write(outputStream)
+    # Write the result to a new PDF file
+    with open(f"new_message_{file_num}.pdf", "wb") as outputStream:
+        # output.write(outputStream)
+        writer.write(outputStream)
 
 
 if __name__ == "__main__":
