@@ -20,7 +20,7 @@ def peer():
     group = request.args.get("group", "General")
     local = request.args.get("local", "False")
     add_message_to_text_file(msg, name, group)
-    add_messages_to_pdf(group)
+    add_messages_to_pdf(msg,group)
 
     # The following commands are for macOS to close and reopen Adobe Acrobat
     #os.system("osascript -e 'tell application \"Adobe Acrobat\" to quit'")
@@ -80,10 +80,11 @@ def add_message_to_text_file(msg, name, group):
 #         output.write(outputStream)
 
 
-def add_messages_to_pdf(group):
+def add_messages_to_pdf(msg,group):
     # Read the existing PDF with form fields
-    # existing_pdf = PdfReader("message.pdf")
-    # output = PdfWriter()
+    existing_pdf = PdfReader("message.pdf")
+    output = PdfWriter()
+    global file_num
 
     reader = PdfReader("message.pdf")
     writer = PdfWriter()
@@ -91,12 +92,14 @@ def add_messages_to_pdf(group):
     writer.append_pages_from_reader(reader)
 
     # Add all pages from the existing PDF
-    # for page in existing_pdf.pages:
-    #     output.add_page(page)
+    for page in existing_pdf.pages:
+        output.add_page(page)
 
     # Read all messages from the text file
     with open(group + ".txt", "r") as f:
         lines = f.readlines()
+
+    
     
     # Combine all messages into a single string with newlines
     messages_text = "".join(lines)
@@ -112,11 +115,11 @@ def add_messages_to_pdf(group):
     # js = "function foo(){var f = this.getField('Text1');f.value = 'hihi';};;app.setTimeOut(foo, 500);"
 
     # Build safe JS (assign into the ChatBox field, after a small delay)
-    code_inner = f'var f = this.getField("Text1"); f.value = {json.dumps(messages_text)};'
+    code_inner = f'var f = this.getField("Hidden"); f.value = {json.dumps(messages_text)};'
     js = f"app.setTimeOut('{code_inner}', 500);"
 
     writer.add_js(js)
-    global file_num
+    
 
     # Write the result to a new PDF file
     with open(f"new_message_{file_num}.pdf", "wb") as outputStream:
