@@ -4,6 +4,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 import os
+import json
 import pyautogui
 
 app = Flask(__name__)
@@ -27,49 +28,92 @@ def peer():
         pyautogui.click(x=960, y=540)  # Coordinates for "Don't Save" button
 
     os.system("osascript -e 'tell application \"Chrome\" to quit'")
-    os.system("sleep 10;open -a Adobe\ Acrobat new_message.pdf")
+    os.system("sleep 10;open -a Adobe\\ Acrobat new_message.pdf")
 
     return "Message Received"
 
 
 def add_message_to_text_file(msg, name, group):
     with open(group + ".txt", "a") as f:
-        f.write(f"{name}:{msg}\n")
+        f.write(f"{name}:{msg}\\n")
+
+
+# def add_messages_to_pdf(group):
+#     # Create a PDF in memory
+#     packet = BytesIO()
+#     can = canvas.Canvas(packet, pagesize=letter)
+
+#     # can.drawString(100, 750, f"Message: {msg}")
+#     # can.drawString(100, 730, f"From: {name}")
+#     # draw a String for each msg in {group}.txt
+#     with open(group + ".txt", "r") as f:
+#         lines = f.readlines()
+#         y = 700
+#         for line in lines:  # Show only the last 5 messages
+#             can.drawString(100, y, line.strip())
+#             y -= 20
+
+#     can.save()
+
+#     # Move to the beginning of the StringIO buffer
+#     packet.seek(0)
+#     new_pdf = PdfReader(packet)
+
+#     # Read the existing PDF
+#     existing_pdf = PdfReader("message.pdf")
+#     output = PdfWriter()
+
+#     # Add the "watermark" (which is the new pdf) on the existing page
+#     page = existing_pdf.pages[0]
+#     page.merge_page(new_pdf.pages[0])
+#     output.add_page(page)
+
+#     # Write the result to a new PDF file
+#     with open("new_message.pdf", "wb") as outputStream:
+#         output.write(outputStream)
 
 
 def add_messages_to_pdf(group):
-    # Create a PDF in memory
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+    # Read the existing PDF with form fields
+    # existing_pdf = PdfReader("message.pdf")
+    # output = PdfWriter()
 
-    # can.drawString(100, 750, f"Message: {msg}")
-    # can.drawString(100, 730, f"From: {name}")
-    # draw a String for each msg in {group}.txt
+    reader = PdfReader("message.pdf")
+    writer = PdfWriter()
+
+    writer.append_pages_from_reader(reader)
+
+    # Add all pages from the existing PDF
+    # for page in existing_pdf.pages:
+    #     output.add_page(page)
+
+    # Read all messages from the text file
     with open(group + ".txt", "r") as f:
         lines = f.readlines()
-        y = 700
-        for line in lines:  # Show only the last 5 messages
-            can.drawString(100, y, line.strip())
-            y -= 20
+    
+    # Combine all messages into a single string with newlines
+    messages_text = "".join(lines)
+    # messages_text = "Peer:hihi\\nPeer:hello"
 
-    can.save()
+    # Update the ChatBox form field with the messages
+    # output.update_page_form_field_values(
+    #     output.pages[0], {"ChatBox": messages_text}
+    # )
 
-    # Move to the beginning of the StringIO buffer
-    packet.seek(0)
-    new_pdf = PdfReader(packet)
+    # js = "var f = this.getField('Text1'); f.value = 'hihi';"
 
-    # Read the existing PDF
-    existing_pdf = PdfReader("message.pdf")
-    output = PdfWriter()
+    # js = "function foo(){var f = this.getField('Text1');f.value = 'hihi';};;app.setTimeOut(foo, 500);"
 
-    # Add the "watermark" (which is the new pdf) on the existing page
-    page = existing_pdf.pages[0]
-    page.merge_page(new_pdf.pages[0])
-    output.add_page(page)
+    # Build safe JS (assign into the ChatBox field, after a small delay)
+    code_inner = f'var f = this.getField("Text1"); f.value = {json.dumps(messages_text)};'
+    js = f"app.setTimeOut('{code_inner}', 500);"
+
+    writer.add_js(js)
 
     # Write the result to a new PDF file
     with open("new_message.pdf", "wb") as outputStream:
-        output.write(outputStream)
+        # output.write(outputStream)
+        writer.write(outputStream)
 
 
 if __name__ == "__main__":
