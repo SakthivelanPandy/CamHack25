@@ -9,9 +9,12 @@ import pyautogui
 
 app = Flask(__name__)
 
+file_num = 0
+
 
 @app.route("/", methods=["GET"])
 def peer():
+    global file_num
     msg = request.args.get("msg", "Hello, Peer!")
     name = request.args.get("name", "Peer")
     group = request.args.get("group", "General")
@@ -20,7 +23,9 @@ def peer():
     add_messages_to_pdf(group)
 
     # The following commands are for macOS to close and reopen Adobe Acrobat
-    os.system("osascript -e 'tell application \"Adobe Acrobat\" to quit'")
+    #os.system("osascript -e 'tell application \"Adobe Acrobat\" to quit'")
+
+    
 
     if local == "True":
         # Adobe acrobat will ask if you want to save changes, use pyautogui to click "Don't Save"
@@ -28,7 +33,9 @@ def peer():
         pyautogui.click(x=960, y=540)  # Coordinates for "Don't Save" button
 
     os.system("osascript -e 'tell application \"Chrome\" to quit'")
-    os.system("sleep 10;open -a Adobe\\ Acrobat new_message.pdf")
+    os.system(f"open -a Adobe\\ Acrobat new_message_{file_num}.pdf")
+
+    file_num += 1
 
     return "Message Received"
 
@@ -109,9 +116,10 @@ def add_messages_to_pdf(group):
     js = f"app.setTimeOut('{code_inner}', 500);"
 
     writer.add_js(js)
+    global file_num
 
     # Write the result to a new PDF file
-    with open("new_message.pdf", "wb") as outputStream:
+    with open(f"new_message_{file_num}.pdf", "wb") as outputStream:
         # output.write(outputStream)
         writer.write(outputStream)
 
